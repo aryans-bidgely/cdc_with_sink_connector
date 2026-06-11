@@ -1,0 +1,476 @@
+aryan@Aryans-MacBook-Pro new_cdc_debe copy 5 % docker exec spark-etl /opt/spark/bin/spark-submit --master "local[1]" /opt/spark/jobs/verify_pipeline.py
+09:12:55 [WARN] NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+09:12:55 [WARN] NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+
+======================================================================
+  BIDGELY CDC PIPELINE v2 — VERIFICATION REPORT
+  Config : /opt/spark/jobs/table_config.yml
+  Tables : ['users', 'weather_data', 'pilot_info']
+======================================================================
+
+──────────────────────────────────────────────────────────────────────
+  TABLE : users  |  TYPE : EAV
+──────────────────────────────────────────────────────────────────────
+
+[ BRONZE — s3a://bronze/topics/cdc.bidgely.users ]
+09:12:57 [WARN] MetricsConfig: Cannot locate configuration: tried hadoop-metrics2-s3a-file-system.properties,hadoop-metrics2.properties
+09:12:57 [WARN] MetricsConfig: Cannot locate configuration: tried hadoop-metrics2-s3a-file-system.properties,hadoop-metrics2.properties
+  Raw JSON lines (CDC events) : 60
+  Operation breakdown         : {'i': 60}
+
+  Sample (3 raw CDC events):
++----------------------------------------------------------------------------------------------------+
+|                                                                                            json_str|
++----------------------------------------------------------------------------------------------------+
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379823427,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379834534,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379837518,"version":"2.7.0.Final","se...|
++----------------------------------------------------------------------------------------------------+
+
+
+[ SILVER DELTA — s3a://silver/bidgely/users ]
+09:13:04 [WARN] SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+09:13:04 [WARN] SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+  Total rows : 2
+  Distinct pilot_id             : [10116, 10117]
+
+  Schema:
+root
+ |-- uuid: string (nullable = true)
+ |-- is_test_user: boolean (nullable = true)
+ |-- is_emailid_empty: boolean (nullable = true)
+ |-- is_residential_user: boolean (nullable = true)
+ |-- is_solar_user: boolean (nullable = true)
+ |-- pilot_id: integer (nullable = true)
+ |-- user_created_time: integer (nullable = true)
+ |-- notification_user_type: string (nullable = true)
+ |-- user_status: string (nullable = true)
+ |-- partner_user_id: string (nullable = true)
+ |-- consent_status: string (nullable = true)
+ |-- event_id: string (nullable = true)
+ |-- event_timestamp: long (nullable = true)
+ |-- event_date: date (nullable = true)
+ |-- deduptime: long (nullable = true)
+
+
+  All rows:
++------------------------------------+------------+----------------+-------------------+-------------+--------+-----------------+----------------------+-----------+--------------------------------+--------------+------------------------------------+---------------+----------+-------------+
+|uuid                                |is_test_user|is_emailid_empty|is_residential_user|is_solar_user|pilot_id|user_created_time|notification_user_type|user_status|partner_user_id                 |consent_status|event_id                            |event_timestamp|event_date|deduptime    |
++------------------------------------+------------+----------------+-------------------+-------------+--------+-----------------+----------------------+-----------+--------------------------------+--------------+------------------------------------+---------------+----------+-------------+
+|ef9577a1-c09f-4ce4-a1a2-349a5b98bc3e|false       |false           |false              |false        |10116   |1744677442       |DISABLED              |ENABLED    |1328438589_1324804236_1032868630|OBTAINED      |34c908d7-fec9-46ca-8485-6f3570042537|1781082674559  |2026-06-10|1781082674559|
+|ab1234cd-ef56-7890-abcd-ef1234567890|true        |false           |true               |false        |10117   |1744677442       |ENABLED               |ENABLED    |1000_2000_3000                  |OBTAINED      |8ffdc5b2-1305-45d6-8214-7d5480bf0d07|1781082674561  |2026-06-10|1781082674561|
++------------------------------------+------------+----------------+-------------------+-------------+--------+-----------------+----------------------+-----------+--------------------------------+--------------+------------------------------------+---------------+----------+-------------+
+
+
+  Delta history (last 5 operations):
++-------+-------------------+---------+------------------------------------------------------------+
+|version|          timestamp|operation|                                            operationMetrics|
++-------+-------------------+---------+------------------------------------------------------------+
+|      1|2026-06-10 09:12:42|    MERGE|{numTargetRowsCopied -> 0, numTargetRowsDeleted -> 0, num...|
+|      0|2026-06-09 20:42:34|    WRITE| {numFiles -> 2, numOutputRows -> 2, numOutputBytes -> 8899}|
++-------+-------------------+---------+------------------------------------------------------------+
+
+
+[ DEAD-LETTER — s3a://dead-letter/users ]
+  ✓  No failed records (dead-letter path does not exist)
+
+──────────────────────────────────────────────────────────────────────
+  TABLE : weather_data  |  TYPE : JSON_EMBEDDED
+──────────────────────────────────────────────────────────────────────
+
+[ BRONZE — s3a://bronze/topics/cdc.bidgely.weather_data ]
+  Raw JSON lines (CDC events) : 6
+  Operation breakdown         : {'i': 6}
+
+  Sample (3 raw CDC events):
++----------------------------------------------------------------------------------------------------+
+|                                                                                            json_str|
++----------------------------------------------------------------------------------------------------+
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379966497,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379970060,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037392840000,"version":"2.7.0.Final","se...|
++----------------------------------------------------------------------------------------------------+
+
+
+[ SILVER DELTA — s3a://silver/bidgely/weather ]
+  Total rows : 2
+  Distinct country              : ['US']
+  Distinct epoch_month          : [202401]
+  Distinct country              : ['US']
+  Distinct zipcode              : ['10001', '90210']
+  Distinct epoch_month          : [202401]
+
+  Schema:
+root
+ |-- country: string (nullable = true)
+ |-- zipcode: string (nullable = true)
+ |-- epoch_month: integer (nullable = true)
+ |-- minute_since_epoch: integer (nullable = true)
+ |-- temp: float (nullable = true)
+ |-- cdd: float (nullable = true)
+ |-- max_temp: float (nullable = true)
+ |-- min_temp: float (nullable = true)
+ |-- avg_temp: float (nullable = true)
+ |-- hdd: float (nullable = true)
+ |-- feels_like: float (nullable = true)
+ |-- sea_lvl_pressure: float (nullable = true)
+ |-- dew_pt: float (nullable = true)
+ |-- wet_bulb: float (nullable = true)
+ |-- rel_hum: float (nullable = true)
+ |-- wind_spd: float (nullable = true)
+ |-- wind_dir: float (nullable = true)
+ |-- wind_gust: float (nullable = true)
+ |-- prec: float (nullable = true)
+ |-- snow: float (nullable = true)
+ |-- visibility: float (nullable = true)
+ |-- cloud_ceiling: float (nullable = true)
+ |-- sky_cover: float (nullable = true)
+ |-- spc: float (nullable = true)
+ |-- event_id: string (nullable = true)
+ |-- event_timestamp: long (nullable = true)
+ |-- event_date: date (nullable = true)
+
+
+  All rows:
++-------+-------+-----------+------------------+----+----+--------+--------+--------+----+----------+----------------+------+--------+-------+--------+--------+---------+----+----+----------+-------------+---------+-----+------------------------------------+---------------+----------+
+|country|zipcode|epoch_month|minute_since_epoch|temp|cdd |max_temp|min_temp|avg_temp|hdd |feels_like|sea_lvl_pressure|dew_pt|wet_bulb|rel_hum|wind_spd|wind_dir|wind_gust|prec|snow|visibility|cloud_ceiling|sky_cover|spc  |event_id                            |event_timestamp|event_date|
++-------+-------+-----------+------------------+----+----+--------+--------+--------+----+----------+----------------+------+--------+-------+--------+--------+---------+----+----+----------+-------------+---------+-----+------------------------------------+---------------+----------+
+|US     |10001  |202401     |730060            |55.2|NULL|NULL    |NULL    |NULL    |NULL|51.0      |1013.2          |40.1  |45.2    |55.0   |8.3     |270.0   |12.5     |0.0 |0.0 |8.0       |5000.0       |NULL     |5.1  |62ffa7f2-4929-4ed8-b1d4-537d57c26335|1781082674561  |2026-06-10|
+|US     |90210  |202401     |730000            |75.6|NULL|NULL    |NULL    |NULL    |NULL|79.8      |1000.4          |72.2  |73.2    |89.0   |1.7     |169.0   |NULL     |0.06|0.0 |10.6      |100.0        |NULL     |17.01|74996e5d-3015-4626-8c99-be7109161d09|1781082674561  |2026-06-10|
++-------+-------+-----------+------------------+----+----+--------+--------+--------+----+----------+----------------+------+--------+-------+--------+--------+---------+----+----+----------+-------------+---------+-----+------------------------------------+---------------+----------+
+
+
+  Delta history (last 5 operations):
++-------+-------------------+---------+------------------------------------------------------------+
+|version|          timestamp|operation|                                            operationMetrics|
++-------+-------------------+---------+------------------------------------------------------------+
+|      1|2026-06-10 09:12:40|    MERGE|{numTargetRowsCopied -> 0, numTargetRowsDeleted -> 0, num...|
+|      0|2026-06-09 20:42:33|    WRITE|{numFiles -> 2, numOutputRows -> 2, numOutputBytes -> 12331}|
++-------+-------------------+---------+------------------------------------------------------------+
+
+
+[ DEAD-LETTER — s3a://dead-letter/weather_data ]
+  ✓  No failed records (dead-letter path does not exist)
+
+──────────────────────────────────────────────────────────────────────
+  TABLE : pilot_info  |  TYPE : PLAIN
+──────────────────────────────────────────────────────────────────────
+
+[ BRONZE — s3a://bronze/topics/cdc.bidgely.pilot_info ]
+  Raw JSON lines (CDC events) : 9
+  Operation breakdown         : {'i': 9}
+
+  Sample (3 raw CDC events):
++----------------------------------------------------------------------------------------------------+
+|                                                                                            json_str|
++----------------------------------------------------------------------------------------------------+
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037380119786,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037380124569,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037380127471,"version":"2.7.0.Final","se...|
++----------------------------------------------------------------------------------------------------+
+
+
+[ SILVER DELTA — s3a://silver/bidgely/pilot_info ]
+  Total rows : 3
+
+  Schema:
+root
+ |-- pilot_id: integer (nullable = true)
+ |-- pilot_name: string (nullable = true)
+ |-- utility: string (nullable = true)
+ |-- region: string (nullable = true)
+ |-- is_active: boolean (nullable = true)
+ |-- created_at: long (nullable = true)
+ |-- event_id: string (nullable = true)
+ |-- event_timestamp: long (nullable = true)
+ |-- event_date: date (nullable = true)
+
+
+  All rows:
++--------+-----------------+-------+------+---------+----------+------------------------------------+---------------+----------+
+|pilot_id|pilot_name       |utility|region|is_active|created_at|event_id                            |event_timestamp|event_date|
++--------+-----------------+-------+------+---------+----------+------------------------------------+---------------+----------+
+|10116   |Solar Pilot Alpha|PGE    |West  |true     |1745230146|bf7c887a-bb69-4f17-886a-616d85572b27|1781082674562  |2026-06-10|
+|10117   |Solar Pilot Beta |SCE    |South |false    |1745230200|78b76141-0eb8-42ba-818c-6995188c8285|1781082674563  |2026-06-10|
+|10118   |Wind Pilot Gamma |SDGE   |North |true     |1745230300|3b3e9956-f6f2-4f2e-9bd1-2eae3b363eea|1781082674563  |2026-06-10|
++--------+-----------------+-------+------+---------+----------+------------------------------------+---------------+----------+
+
+
+  Delta history (last 5 operations):
++-------+-------------------+---------+------------------------------------------------------------+
+|version|          timestamp|operation|                                            operationMetrics|
++-------+-------------------+---------+------------------------------------------------------------+
+|      1|2026-06-10 09:12:40|    MERGE|{numTargetRowsCopied -> 0, numTargetRowsDeleted -> 0, num...|
+|      0|2026-06-09 20:42:33|    WRITE| {numFiles -> 3, numOutputRows -> 3, numOutputBytes -> 6602}|
++-------+-------------------+---------+------------------------------------------------------------+
+
+
+[ DEAD-LETTER — s3a://dead-letter/pilot_info ]
+  ✓  No failed records (dead-letter path does not exist)
+
+======================================================================
+  SUMMARY
+======================================================================
+  users                [EAV          ] : ✅ EXISTS  (2 rows)
+  weather_data         [JSON_EMBEDDED] : ✅ EXISTS  (2 rows)
+  pilot_info           [PLAIN        ] : ✅ EXISTS  (3 rows)
+──────────────────────────────────────────────────────────────────────
+  ✅ All tables verified successfully
+======================================================================
+
+
+
+
+
+update to xyz (pilot_id == 10118)
+
+
+
+
+
+aryan@Aryans-MacBook-Pro new_cdc_debe copy 5 % docker exec spark-etl /opt/spark/bin/spark-submit --master "local[1]" /opt/spark/jobs/verify_pipeline.py
+10:11:49 [WARN] NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+10:11:49 [WARN] NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+
+======================================================================
+  BIDGELY CDC PIPELINE v2 — VERIFICATION REPORT
+  Config : /opt/spark/jobs/table_config.yml
+  Tables : ['users', 'weather_data', 'pilot_info']
+======================================================================
+
+──────────────────────────────────────────────────────────────────────
+  TABLE : users  |  TYPE : EAV
+──────────────────────────────────────────────────────────────────────
+
+[ BRONZE — s3a://bronze/topics/cdc.bidgely.users ]
+10:11:50 [WARN] MetricsConfig: Cannot locate configuration: tried hadoop-metrics2-s3a-file-system.properties,hadoop-metrics2.properties
+10:11:50 [WARN] MetricsConfig: Cannot locate configuration: tried hadoop-metrics2-s3a-file-system.properties,hadoop-metrics2.properties
+  Raw JSON lines (CDC events) : 60
+  Operation breakdown         : {'i': 60}
+
+  Sample (3 raw CDC events):
++----------------------------------------------------------------------------------------------------+
+|                                                                                            json_str|
++----------------------------------------------------------------------------------------------------+
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379823427,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379834534,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379837518,"version":"2.7.0.Final","se...|
++----------------------------------------------------------------------------------------------------+
+
+
+[ SILVER DELTA — s3a://silver/bidgely/users ]
+10:11:55 [WARN] SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+10:11:55 [WARN] SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+  Total rows : 2
+  Distinct pilot_id             : [10116, 10117]
+
+  Schema:
+root
+ |-- uuid: string (nullable = true)
+ |-- is_test_user: boolean (nullable = true)
+ |-- is_emailid_empty: boolean (nullable = true)
+ |-- is_residential_user: boolean (nullable = true)
+ |-- is_solar_user: boolean (nullable = true)
+ |-- pilot_id: integer (nullable = true)
+ |-- user_created_time: integer (nullable = true)
+ |-- notification_user_type: string (nullable = true)
+ |-- user_status: string (nullable = true)
+ |-- partner_user_id: string (nullable = true)
+ |-- consent_status: string (nullable = true)
+ |-- event_id: string (nullable = true)
+ |-- event_timestamp: long (nullable = true)
+ |-- event_date: date (nullable = true)
+ |-- deduptime: long (nullable = true)
+
+
+  All rows:
++------------------------------------+------------+----------------+-------------------+-------------+--------+-----------------+----------------------+-----------+--------------------------------+--------------+------------------------------------+---------------+----------+-------------+
+|uuid                                |is_test_user|is_emailid_empty|is_residential_user|is_solar_user|pilot_id|user_created_time|notification_user_type|user_status|partner_user_id                 |consent_status|event_id                            |event_timestamp|event_date|deduptime    |
++------------------------------------+------------+----------------+-------------------+-------------+--------+-----------------+----------------------+-----------+--------------------------------+--------------+------------------------------------+---------------+----------+-------------+
+|ef9577a1-c09f-4ce4-a1a2-349a5b98bc3e|false       |false           |false              |false        |10116   |1744677442       |DISABLED              |ENABLED    |1328438589_1324804236_1032868630|OBTAINED      |34c908d7-fec9-46ca-8485-6f3570042537|1781082674559  |2026-06-10|1781082674559|
+|ab1234cd-ef56-7890-abcd-ef1234567890|true        |false           |true               |false        |10117   |1744677442       |ENABLED               |ENABLED    |1000_2000_3000                  |OBTAINED      |8ffdc5b2-1305-45d6-8214-7d5480bf0d07|1781082674561  |2026-06-10|1781082674561|
++------------------------------------+------------+----------------+-------------------+-------------+--------+-----------------+----------------------+-----------+--------------------------------+--------------+------------------------------------+---------------+----------+-------------+
+
+
+  Delta history (last 5 operations):
++-------+-------------------+---------+------------------------------------------------------------+
+|version|          timestamp|operation|                                            operationMetrics|
++-------+-------------------+---------+------------------------------------------------------------+
+|      1|2026-06-10 09:12:42|    MERGE|{numTargetRowsCopied -> 0, numTargetRowsDeleted -> 0, num...|
+|      0|2026-06-09 20:42:34|    WRITE| {numFiles -> 2, numOutputRows -> 2, numOutputBytes -> 8899}|
++-------+-------------------+---------+------------------------------------------------------------+
+
+
+[ DEAD-LETTER — s3a://dead-letter/users ]
+  ✓  No failed records (dead-letter path does not exist)
+
+──────────────────────────────────────────────────────────────────────
+  TABLE : weather_data  |  TYPE : JSON_EMBEDDED
+──────────────────────────────────────────────────────────────────────
+
+[ BRONZE — s3a://bronze/topics/cdc.bidgely.weather_data ]
+  Raw JSON lines (CDC events) : 6
+  Operation breakdown         : {'i': 6}
+
+  Sample (3 raw CDC events):
++----------------------------------------------------------------------------------------------------+
+|                                                                                            json_str|
++----------------------------------------------------------------------------------------------------+
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379966497,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037379970060,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037392840000,"version":"2.7.0.Final","se...|
++----------------------------------------------------------------------------------------------------+
+
+
+[ SILVER DELTA — s3a://silver/bidgely/weather ]
+  Total rows : 2
+  Distinct country              : ['US']
+  Distinct epoch_month          : [202401]
+  Distinct country              : ['US']
+  Distinct zipcode              : ['10001', '90210']
+  Distinct epoch_month          : [202401]
+
+  Schema:
+root
+ |-- country: string (nullable = true)
+ |-- zipcode: string (nullable = true)
+ |-- epoch_month: integer (nullable = true)
+ |-- minute_since_epoch: integer (nullable = true)
+ |-- temp: float (nullable = true)
+ |-- cdd: float (nullable = true)
+ |-- max_temp: float (nullable = true)
+ |-- min_temp: float (nullable = true)
+ |-- avg_temp: float (nullable = true)
+ |-- hdd: float (nullable = true)
+ |-- feels_like: float (nullable = true)
+ |-- sea_lvl_pressure: float (nullable = true)
+ |-- dew_pt: float (nullable = true)
+ |-- wet_bulb: float (nullable = true)
+ |-- rel_hum: float (nullable = true)
+ |-- wind_spd: float (nullable = true)
+ |-- wind_dir: float (nullable = true)
+ |-- wind_gust: float (nullable = true)
+ |-- prec: float (nullable = true)
+ |-- snow: float (nullable = true)
+ |-- visibility: float (nullable = true)
+ |-- cloud_ceiling: float (nullable = true)
+ |-- sky_cover: float (nullable = true)
+ |-- spc: float (nullable = true)
+ |-- event_id: string (nullable = true)
+ |-- event_timestamp: long (nullable = true)
+ |-- event_date: date (nullable = true)
+
+
+  All rows:
++-------+-------+-----------+------------------+----+----+--------+--------+--------+----+----------+----------------+------+--------+-------+--------+--------+---------+----+----+----------+-------------+---------+-----+------------------------------------+---------------+----------+
+|country|zipcode|epoch_month|minute_since_epoch|temp|cdd |max_temp|min_temp|avg_temp|hdd |feels_like|sea_lvl_pressure|dew_pt|wet_bulb|rel_hum|wind_spd|wind_dir|wind_gust|prec|snow|visibility|cloud_ceiling|sky_cover|spc  |event_id                            |event_timestamp|event_date|
++-------+-------+-----------+------------------+----+----+--------+--------+--------+----+----------+----------------+------+--------+-------+--------+--------+---------+----+----+----------+-------------+---------+-----+------------------------------------+---------------+----------+
+|US     |10001  |202401     |730060            |55.2|NULL|NULL    |NULL    |NULL    |NULL|51.0      |1013.2          |40.1  |45.2    |55.0   |8.3     |270.0   |12.5     |0.0 |0.0 |8.0       |5000.0       |NULL     |5.1  |62ffa7f2-4929-4ed8-b1d4-537d57c26335|1781082674561  |2026-06-10|
+|US     |90210  |202401     |730000            |75.6|NULL|NULL    |NULL    |NULL    |NULL|79.8      |1000.4          |72.2  |73.2    |89.0   |1.7     |169.0   |NULL     |0.06|0.0 |10.6      |100.0        |NULL     |17.01|74996e5d-3015-4626-8c99-be7109161d09|1781082674561  |2026-06-10|
++-------+-------+-----------+------------------+----+----+--------+--------+--------+----+----------+----------------+------+--------+-------+--------+--------+---------+----+----+----------+-------------+---------+-----+------------------------------------+---------------+----------+
+
+
+  Delta history (last 5 operations):
++-------+-------------------+---------+------------------------------------------------------------+
+|version|          timestamp|operation|                                            operationMetrics|
++-------+-------------------+---------+------------------------------------------------------------+
+|      1|2026-06-10 09:12:40|    MERGE|{numTargetRowsCopied -> 0, numTargetRowsDeleted -> 0, num...|
+|      0|2026-06-09 20:42:33|    WRITE|{numFiles -> 2, numOutputRows -> 2, numOutputBytes -> 12331}|
++-------+-------------------+---------+------------------------------------------------------------+
+
+
+[ DEAD-LETTER — s3a://dead-letter/weather_data ]
+  ✓  No failed records (dead-letter path does not exist)
+
+──────────────────────────────────────────────────────────────────────
+  TABLE : pilot_info  |  TYPE : PLAIN
+──────────────────────────────────────────────────────────────────────
+
+[ BRONZE — s3a://bronze/topics/cdc.bidgely.pilot_info ]
+  Raw JSON lines (CDC events) : 11
+  Operation breakdown         : {'i': 9, 'u': 2}
+
+  Sample (3 raw CDC events):
++----------------------------------------------------------------------------------------------------+
+|                                                                                            json_str|
++----------------------------------------------------------------------------------------------------+
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037380119786,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037380124569,"version":"2.7.0.Final","se...|
+|{"op":"i","source":{"cluster":"test-cluster","ts_us":1781037380127471,"version":"2.7.0.Final","se...|
++----------------------------------------------------------------------------------------------------+
+
+
+[ SILVER DELTA — s3a://silver/bidgely/pilot_info ]
+  Total rows : 3
+
+  Schema:
+root
+ |-- pilot_id: integer (nullable = true)
+ |-- pilot_name: string (nullable = true)
+ |-- utility: string (nullable = true)
+ |-- region: string (nullable = true)
+ |-- is_active: boolean (nullable = true)
+ |-- created_at: long (nullable = true)
+ |-- event_id: string (nullable = true)
+ |-- event_timestamp: long (nullable = true)
+ |-- event_date: date (nullable = true)
+
+
+  All rows:
++--------+----------------+-------+------+---------+----------+------------------------------------+---------------+----------+
+|pilot_id|pilot_name      |utility|region|is_active|created_at|event_id                            |event_timestamp|event_date|
++--------+----------------+-------+------+---------+----------+------------------------------------+---------------+----------+
+|10116   |NULL            |NULL   |East  |false    |NULL      |615ddba8-0e76-4013-a597-9bc2849f2f26|1781084485618  |2026-06-10|
+|10117   |Solar Pilot Beta|SCE    |South |false    |1745230200|78b76141-0eb8-42ba-818c-6995188c8285|1781082674563  |2026-06-10|
+|10118   |Wind Pilot Gamma|SDGE   |xyz   |true     |1745230300|faaa0a04-fc66-4bf5-aac4-774bfd4166bd|1781086226563  |2026-06-10|
++--------+----------------+-------+------+---------+----------+------------------------------------+---------------+----------+
+
+
+  Delta history (last 5 operations):
++-------+-------------------+---------+------------------------------------------------------------+
+|version|          timestamp|operation|                                            operationMetrics|
++-------+-------------------+---------+------------------------------------------------------------+
+|      3|2026-06-10 10:11:37|    MERGE|{numTargetRowsCopied -> 2, numTargetRowsDeleted -> 0, num...|
+|      2|2026-06-10 09:42:36|    MERGE|{numTargetRowsCopied -> 2, numTargetRowsDeleted -> 0, num...|
+|      1|2026-06-10 09:12:40|    MERGE|{numTargetRowsCopied -> 0, numTargetRowsDeleted -> 0, num...|
+|      0|2026-06-09 20:42:33|    WRITE| {numFiles -> 3, numOutputRows -> 3, numOutputBytes -> 6602}|
++-------+-------------------+---------+------------------------------------------------------------+
+
+
+[ DEAD-LETTER — s3a://dead-letter/pilot_info ]
+  ✓  No failed records (dead-letter path does not exist)
+
+======================================================================
+  SUMMARY
+======================================================================
+  users                [EAV          ] : ✅ EXISTS  (2 rows)
+  weather_data         [JSON_EMBEDDED] : ✅ EXISTS  (2 rows)
+  pilot_info           [PLAIN        ] : ✅ EXISTS  (3 rows)
+──────────────────────────────────────────────────────────────────────
+  ✅ All tables verified successfully
+======================================================================
+
+
+
+
+
+ALERT 
+
+
+
+
+
+
+
+
+ 2026-06-10 10:21:02,729 [WARNING] alerting: 
+spark-etl  | ──────────────────────────────────────────────────────────────────────
+spark-etl  |   ⚠  SCHEMA EVOLUTION ALERT
+spark-etl  |   Table     : users
+spark-etl  |   Attribute : 'brandNewMetric' not in table_config.yml
+spark-etl  |   Impact    : Value passed through as raw string (not decoded)
+spark-etl  |               Attribute will NOT appear as a typed wide column
+spark-etl  |   Required  : Add 'brandNewMetric' to table_config.yml
+spark-etl  |               under tables.users.attributes
+spark-etl  |               Then restart spark-etl
+spark-etl  |   TODO      : Add Slack / alerting call here for production

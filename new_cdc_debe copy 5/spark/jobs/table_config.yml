@@ -1,0 +1,250 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# table_config.yml
+# Master configuration for Bidgely Generic CDC Pipeline
+#
+# Three table types supported:
+#   EAV           — Entity-Attribute-Value (users pattern)
+#                   Cassandra schema: (key, column1, column2 text, value blob)
+#                   One Kafka message = one attribute mutation
+#                   Needs: blob decode → dedup → pivot → CASE WHEN MERGE
+#
+#   JSON_EMBEDDED — Normal PK + one text column containing JSON metrics
+#                   Cassandra schema: (composite PK, json_value text)
+#                   One Kafka message = one complete row update
+#                   Needs: PK extract → dedup → JSON expand → simple MERGE
+#
+#   PLAIN         — Standard typed Cassandra columns, no special encoding
+#                   Cassandra schema: regular typed columns
+#                   One Kafka message = one complete row update
+#                   Needs: field extract → dedup → simple MERGE
+#
+# Adding a new table:
+#   1. Ensure Cassandra table has WITH cdc = true
+#   2. Add entry below with correct type
+#   3. Restart spark-etl container
+#   4. No code changes needed
+#
+# S3 Sink Connector auto-discovers all cdc.bidgely.* topics via topics.regex —
+# Bronze files will appear automatically for any new CDC-enabled table.
+# ═══════════════════════════════════════════════════════════════════════════════
+ 
+tables:
+ 
+  # ─── TYPE 1: EAV ──────────────────────────────────────────────────────────
+  # Source table: bidgely.users
+  #   PRIMARY KEY (key uuid, column1 varint, column2 text)
+  #   value blob
+  #
+  # Debezium message (one per attribute):
+  #   {"ts_ms":..., "op":"c", "after": {
+  #     "key":     {"value": "ef9577a1-...", "deletion_ts": null, "set": true},
+  #     "column2": {"value": "pilotId",     "deletion_ts": null, "set": true},
+  #     "value":   {"value": "AAAnlA==",    "deletion_ts": null, "set": true}
+  #   }}
+  #
+  # attributes section:
+  #   key = column2 value (Cassandra attribute name)
+  #   wide = Delta wide column name
+  #   type = Cassandra blob encoding (drives base64 decode logic)
+  #
+  # NOTE: encrypted, hasViewedTour, removed exist in blob_decoder.py
+  # ATTRIBUTE_TYPE_MAP but were NOT in COLUMN2_TO_WIDE and never pivoted
+  # to the Delta table in v1. Excluded here to preserve v1 schema.
+  # ──────────────────────────────────────────────────────────────────────────
+  users:
+    type: EAV
+    enabled: true
+    kafka_topic: cdc.bidgely.users
+    bronze_path: s3a://bronze/topics/cdc.bidgely.users
+    silver_path: s3a://silver/bidgely/users
+    checkpoint_path: s3a://bronze/checkpoints/users
+    dead_letter_path: s3a://dead-letter/users
+    partition_by: pilot_id
+    merge_key: uuid
+    cassandra_key_field: key        # Cassandra column name → $.after.key.value
+    attributes:
+      # ── Boolean attributes (blob: 0x00=false, 0x01=true) ──────────────────
+      isTestUser:
+        wide: is_test_user
+        type: boolean
+      isEmailidEmpty:
+        wide: is_emailid_empty
+        type: boolean
+      isResidentialUser:
+        wide: is_residential_user
+        type: boolean
+      isSolarUser:
+        wide: is_solar_user
+        type: boolean
+      # ── Integer attributes (blob: 32-bit big-endian signed) ───────────────
+      pilotId:
+        wide: pilot_id
+        type: int
+      userCreatedTime:
+        wide: user_created_time
+        type: int
+      # ── Text attributes (blob: raw UTF-8 bytes) ───────────────────────────
+      notificationUserType:
+        wide: notification_user_type
+        type: text
+      userStatus:
+        wide: user_status
+        type: text
+      partnerUserId:
+        wide: partner_user_id
+        type: text
+      consentStatus:
+        wide: consent_status
+        type: text
+ 
+  # ─── TYPE 2: JSON_EMBEDDED ────────────────────────────────────────────────
+  # Source table: bidgely.weather_data
+  #   PRIMARY KEY ((country text, zipcode text, epoch_month int),
+  #                 minute_since_epoch int)
+  #   json_value text
+  #
+  # Debezium message (one per full row update):
+  #   {"ts_ms":..., "op":"c", "after": {
+  #     "country":            {"value": "US",   ...},
+  #     "zipcode":            {"value": "90210",...},
+  #     "epoch_month":        {"value": 202401, ...},
+  #     "minute_since_epoch": {"value": 730000, ...},
+  #     "json_value":         {"value": "{\"temp\":\"75.6\",...}", ...}
+  #   }}
+  #
+  # json_columns section:
+  #   outer key   = Cassandra text column holding the JSON string (json_value)
+  #   inner key   = JSON field name inside json_value
+  #   col         = Delta column name
+  #   type        = Spark type to cast after get_json_object extraction
+  #
+  # Tombstone detection:
+  #   DELETE WHERE country=X AND zipcode=Y AND epoch_month=Z
+  #   → Debezium: op=d, minute_since_epoch=null (last clustering key)
+  # ──────────────────────────────────────────────────────────────────────────
+  weather_data:
+    type: JSON_EMBEDDED
+    enabled: true
+    kafka_topic: cdc.bidgely.weather_data
+    bronze_path: s3a://bronze/topics/cdc.bidgely.weather_data
+    silver_path: s3a://silver/bidgely/weather
+    checkpoint_path: s3a://bronze/checkpoints/weather_data
+    dead_letter_path: s3a://dead-letter/weather_data
+    partition_by:
+      - country
+      - epoch_month
+    partition_keys:
+      - name: country
+        type: text
+      - name: zipcode
+        type: text
+      - name: epoch_month
+        type: int
+    clustering_keys:
+      - name: minute_since_epoch
+        type: int
+    merge_key:
+      - country
+      - zipcode
+      - epoch_month
+      - minute_since_epoch
+    json_columns:
+      json_value:               # Cassandra column that holds the JSON string
+        # ── Temperature metrics ──────────────────────────────────────────────
+        temp:           { col: temp,             type: float }
+        cdd:            { col: cdd,              type: float }
+        maxTemp:        { col: max_temp,         type: float }
+        minTemp:        { col: min_temp,         type: float }
+        avgTemp:        { col: avg_temp,         type: float }
+        hdd:            { col: hdd,              type: float }
+        feelsLike:      { col: feels_like,       type: float }
+        # ── Atmospheric metrics ──────────────────────────────────────────────
+        seaLvlPressure: { col: sea_lvl_pressure, type: float }
+        dewPt:          { col: dew_pt,           type: float }
+        wetBulb:        { col: wet_bulb,         type: float }
+        relHum:         { col: rel_hum,          type: float }
+        # ── Wind metrics ─────────────────────────────────────────────────────
+        windSpd:        { col: wind_spd,         type: float }
+        windDir:        { col: wind_dir,         type: float }
+        windGust:       { col: wind_gust,        type: float }
+        # ── Precipitation + visibility ────────────────────────────────────────
+        prec:           { col: prec,             type: float }
+        snow:           { col: snow,             type: float }
+        visibility:     { col: visibility,       type: float }
+        cloudCeiling:   { col: cloud_ceiling,    type: float }
+        skyCover:       { col: sky_cover,        type: float }
+        # ── Radiation ────────────────────────────────────────────────────────
+        spc:            { col: spc,              type: float }
+ 
+  # ─── TYPE 3: PLAIN ────────────────────────────────────────────────────────
+  # Source table: bidgely.pilot_info
+  #   PRIMARY KEY (pilot_id int)
+  #   pilot_name text, utility text, region text,
+  #   is_active boolean, created_at bigint
+  #
+  # Debezium message (one per full row update):
+  #   {"ts_ms":..., "op":"c", "after": {
+  #     "pilot_id":   {"value": 10116,            ...},
+  #     "pilot_name": {"value": "Solar Pilot Alpha",...},
+  #     "utility":    {"value": "PGE",            ...},
+  #     "region":     {"value": "West",           ...},
+  #     "is_active":  {"value": true,             ...},
+  #     "created_at": {"value": 1745230146,       ...}
+  #   }}
+  #
+  # No blob decode needed — Debezium emits native JSON types for typed columns:
+  #   int     → JSON integer
+  #   boolean → JSON boolean (true/false)
+  #   text    → JSON string
+  #   bigint  → JSON integer (long)
+  #
+  # columns section: ALL columns including partition key
+  # partition_keys: used for tombstone detection + MERGE condition building
+  # clustering_keys: empty list for single-column PK tables
+  # ──────────────────────────────────────────────────────────────────────────
+  pilot_info:
+    type: PLAIN
+    enabled: true
+    kafka_topic: cdc.bidgely.pilot_info
+    bronze_path: s3a://bronze/topics/cdc.bidgely.pilot_info
+    silver_path: s3a://silver/bidgely/pilot_info
+    checkpoint_path: s3a://bronze/checkpoints/pilot_info
+    dead_letter_path: s3a://dead-letter/pilot_info
+    partition_by: null               # small table — no Delta partitioning needed
+    partition_keys:
+      - name: pilot_id
+        type: int
+    clustering_keys: []              # simple single-column primary key
+    merge_key: pilot_id
+    columns:                         # ALL columns including partition key
+      - name: pilot_id
+        type: int
+      - name: pilot_name
+        type: text
+      - name: utility
+        type: text
+      - name: region
+        type: text
+      - name: is_active
+        type: boolean
+      - name: created_at
+        type: bigint
+
+
+  meter_data:
+    type: PLAIN
+    enabled: true
+    kafka_topic: cdc.bidgely.meter_data
+    partition_keys:
+      - {name: meter_id, type: text}
+    clustering_keys: []
+    columns:
+      - {name: meter_id, type: text}
+      - {name: reading,  type: double}
+      - {name: unit,     type: text}
+    merge_key: meter_id
+    partition_by: null
+    bronze_path:      s3a://bronze/topics/cdc.bidgely.meter_data
+    silver_path:      s3a://silver/meter_data
+    checkpoint_path:  s3a://bronze/checkpoints/meter_data
+    dead_letter_path: s3a://dead-letter/meter_data
